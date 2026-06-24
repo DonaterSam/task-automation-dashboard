@@ -1,0 +1,12 @@
+Django==5.1
+channels==4.2
+channels-redis==4.2
+celery==5.4
+redis==5.2
+django-celery-results==2.5
+psutil==6.1
+pytest==8.3
+pytest-django==4.9
+pytest-asyncio==0.24
+gunicorn==23.0
+daphne==4.1

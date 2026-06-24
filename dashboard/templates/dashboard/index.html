@@ -1,0 +1,127 @@
+{% extends "dashboard/base.html" %}
+{% load dashboard_tags %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card total p-3">
+            <div class="text-muted small">Серверов</div>
+            <div class="fs-3 fw-bold">{{ stats.servers_total }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card online p-3">
+            <div class="text-muted small">Онлайн</div>
+            <div class="fs-3 fw-bold text-success">{{ stats.servers_online }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card total p-3">
+            <div class="text-muted small">Всего задач</div>
+            <div class="fs-3 fw-bold">{{ stats.tasks_total }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card running p-3">
+            <div class="text-muted small">Выполняются</div>
+            <div class="fs-3 fw-bold text-warning">{{ stats.tasks_running }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card p-3 mb-4">
+            <h5>Запустить задачу</h5>
+            <form method="post" action="{% url 'run_task' %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Сервер</label>
+                    {{ run_form.server }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Тип задачи</label>
+                    {{ run_form.task_type }}
+                </div>
+                <button type="submit" class="btn btn-run text-white w-100">
+                    Запустить
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card p-3">
+            <h5>Последние задачи</h5>
+            <table class="table table-sm table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th>Задача</th>
+                        <th>Сервер</th>
+                        <th>Статус</th>
+                        <th>Создана</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in recent_tasks %}
+                    <tr>
+                        <td>{{ task.name }}</td>
+                        <td>{{ task.server.name }}</td>
+                        <td>
+                            <span class="badge bg-{{ task.status|status_badge }}">
+                                {{ task.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted">Задач пока нет</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const statusColors = {
+        pending: 'warning', running: 'info', success: 'success', failure: 'danger'
+    };
+    const statusLabels = {
+        pending: 'В очереди', running: 'Выполняется', success: 'Успешно', failure: 'Ошибка'
+    };
+
+    const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${wsProto}://${location.host}/ws/tasks/`);
+
+    ws.onmessage = function(e) {
+        const msg = JSON.parse(e.data);
+        if (msg.type !== 'task_status') return;
+        const t = msg.task;
+
+        const tbody = document.querySelector('table tbody');
+        const row = document.createElement('tr');
+        row.classList.add('table-active');
+        row.innerHTML = `
+            <td>${t.name}</td>
+            <td>${t.server_name}</td>
+            <td><span class="badge bg-${statusColors[t.status] || 'secondary'}">${t.status_display || statusLabels[t.status]}</span></td>
+            <td>сейчас</td>
+        `;
+        const emptyRow = tbody.querySelector('.text-muted');
+        if (emptyRow) emptyRow.closest('tr').remove();
+        tbody.insertBefore(row, tbody.firstChild);
+
+        setTimeout(() => row.classList.remove('table-active'), 2000);
+    };
+
+    ws.onclose = function() {
+        console.log('WebSocket closed, reconnecting in 3s...');
+        setTimeout(() => location.reload(), 3000);
+    };
+</script>
+{% endblock %}
